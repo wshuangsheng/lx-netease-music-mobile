@@ -48,6 +48,7 @@ export default memo(({ task: initialTask, onRemove }: { task: LX.Download.Downlo
 
 
   const hasMetaError = useMemo(() => Object.values(task.metadataStatus).includes('fail'), [task.metadataStatus]);
+  const canRetryMetadata = task.target !== 'onedrive';
 
   const handleRetry = useCallback(() => {
     retryTask(task.id);
@@ -78,7 +79,13 @@ export default memo(({ task: initialTask, onRemove }: { task: LX.Download.Downlo
           </View>
         );
       case 'completed':
-        return <Text size={12} color={theme['c-primary']}>已完成</Text>;
+        return (
+          <Text size={12} color={theme['c-primary']} numberOfLines={1}>
+            {task.target === 'onedrive'
+              ? `已上传到 OneDrive${task.remotePath ? `：${task.remotePath}` : ''}`
+              : '已完成'}
+          </Text>
+        );
       case 'error':
         return <Text size={12} color={errorColor} numberOfLines={1}>{task.errorMsg || '下载失败'}</Text>;
       case 'paused':
@@ -104,7 +111,7 @@ export default memo(({ task: initialTask, onRemove }: { task: LX.Download.Downlo
         <Icon name={task.metadataStatus.lyric === 'success' ? 'checkbox-marked' : (task.metadataStatus.lyric === 'fail' ? 'close' : 'checkbox-blank-outline')} color={task.metadataStatus.lyric === 'success' ? theme['c-primary'] : (task.metadataStatus.lyric === 'fail' ? errorColor : theme['c-font-label'])} size={12} />
         <Text size={10} color={theme['c-font-label']}>歌词</Text>
       </View>
-      {hasMetaError && task.status === 'completed' && (
+      {canRetryMetadata && hasMetaError && task.status === 'completed' && (
         <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
           <Icon name="available_updates" size={14} color={theme['c-primary-font-active']} />
         </TouchableOpacity>
@@ -122,6 +129,9 @@ export default memo(({ task: initialTask, onRemove }: { task: LX.Download.Downlo
         </Text>
         <View style={styles.detailsRow}>
           <Text size={11} color={theme['c-font-label']}>{task.quality.toUpperCase()}</Text>
+          {task.target === 'onedrive' &&
+            <Text size={11} color={theme['c-font-label']}> • OneDrive</Text>
+          }
           {task.status === 'completed' && task.progress.total > 0 &&
             <Text size={11} color={theme['c-font-label']}> • {sizeFormate(task.progress.total)}</Text>
           }
@@ -136,7 +146,7 @@ export default memo(({ task: initialTask, onRemove }: { task: LX.Download.Downlo
             <Icon name="play-outline" size={18} color={theme['c-primary']} />
           </TouchableOpacity>
         ) }
-        { !task.isRemoteSynced && (task.status === 'error' || (task.status === 'completed' && hasMetaError)) && (
+        { !task.isRemoteSynced && (task.status === 'error' || (canRetryMetadata && task.status === 'completed' && hasMetaError)) && (
           <TouchableOpacity onPress={handleRetry} style={styles.actionButton}>
             <Icon name="available_updates" size={18} color={theme['c-primary']} />
           </TouchableOpacity>

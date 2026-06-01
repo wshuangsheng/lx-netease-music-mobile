@@ -65,8 +65,9 @@ const buildTrackExtra = (musicInfo: LX.Player.PlayMusic, url?: string) => {
 const buildTracks = (musicInfo: LX.Player.PlayMusic, url?: LX.Player.Track['url'], duration?: LX.Player.Track['duration']): LX.Player.Track[] => {
   const mInfo = formatMusicInfo(musicInfo)
   const track = [] as LX.Player.Track[]
+  const isShowNotificationImage = settingState.setting['player.isShowNotificationImage']
   const album = mInfo.album || undefined
-  const artwork = mInfo.pic && httpRxp.test(mInfo.pic) ? mInfo.pic : undefined
+  const artwork = isShowNotificationImage && mInfo.pic && httpRxp.test(mInfo.pic) ? mInfo.pic : undefined
   const extra = typeof url === 'string' ? buildTrackExtra(musicInfo, url) : {}
   if (url) {
     track.push({
@@ -222,6 +223,8 @@ const updateMetaInfo = async (mInfo: LX.Player.MusicInfo, lyric?: string) => {
   state.isPlaying = await TrackPlayer.getState() == State.Playing
   let artwork = mInfo.pic ?? prevArtwork
   if (mInfo.pic) prevArtwork = mInfo.pic
+  const widgetArtwork = artwork
+  if (!settingState.setting['player.isShowNotificationImage']) artwork = undefined
   let mainTitle: string
   let artistText: string
   if (!state.isPlaying || lyric == null) {
@@ -252,7 +255,7 @@ const updateMetaInfo = async (mInfo: LX.Player.MusicInfo, lyric?: string) => {
   // Update home screen widget
   const widgetTitle = mInfo.name ?? 'LX-N Music'
   const widgetArtist = mInfo.singer ? `${mInfo.singer}${mInfo.album ? ` · ${mInfo.album}` : ''}` : '未在播放'
-  void updateWidget(widgetTitle, widgetArtist, state.isPlaying, artwork).catch(() => { })
+  void updateWidget(widgetTitle, widgetArtist, state.isPlaying, widgetArtwork).catch(() => { })
 }
 
 

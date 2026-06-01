@@ -28,8 +28,10 @@ import {
   pollOneDriveDeviceCode,
 } from '@/core/oneDrive/auth'
 import {
+  getOneDriveDownloadFolder,
   getOneDriveConfig,
   listOneDriveFolders,
+  saveOneDriveDownloadFolder,
   saveOneDriveSelectedFolder,
   scanOneDriveSongs,
 } from '@/core/oneDrive/drive'
@@ -125,6 +127,7 @@ export default memo(() => {
   const [folderStack, setFolderStack] = useState<LX.OneDrive.DriveFolder[]>([])
   const [folders, setFolders] = useState<LX.OneDrive.DriveFolder[]>([])
   const [selectedFolder, setSelectedFolder] = useState<LX.OneDrive.DriveFolder | null>(null)
+  const [downloadFolder, setDownloadFolder] = useState<LX.OneDrive.DriveFolder | null>(null)
   const [songs, setSongs] = useState<LX.OneDrive.MusicInfo[]>([])
   const [scannedAt, setScannedAt] = useState<number | undefined>()
   const [folderLoading, setFolderLoading] = useState(false)
@@ -161,6 +164,7 @@ export default memo(() => {
       setAuthInfo(auth)
       setClientId(auth?.clientId ?? '')
       setSelectedFolder(config.selectedFolder ?? null)
+      setDownloadFolder(getOneDriveDownloadFolder(config))
       setSongs(config.songs ?? [])
       setScannedAt(config.scannedAt)
     })
@@ -239,7 +243,24 @@ export default memo(() => {
     void saveOneDriveSelectedFolder(currentFolder)
       .then((config) => {
         setSelectedFolder(config.selectedFolder ?? null)
+        setDownloadFolder(getOneDriveDownloadFolder(config))
         toast(`已选择：${getFolderName(config.selectedFolder)}`)
+      })
+      .catch((err: any) => {
+        toast(err.message ?? String(err), 'long')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [currentFolder])
+
+  const handleSelectDownloadFolder = useCallback(() => {
+    setLoading(true)
+    void saveOneDriveDownloadFolder(currentFolder)
+      .then((config) => {
+        const folder = getOneDriveDownloadFolder(config)
+        setDownloadFolder(folder)
+        toast(`OneDrive 下载目录：${getFolderName(folder)}`)
       })
       .catch((err: any) => {
         toast(err.message ?? String(err), 'long')
@@ -423,7 +444,7 @@ export default memo(() => {
           }}
         />
         <Text style={styles.tip} color={theme['c-font-label']}>
-          权限：Files.Read、User.Read、offline_access。
+          权限：Files.ReadWrite、User.Read、offline_access。
         </Text>
         <View style={styles.buttonRow}>
           <Button
@@ -493,6 +514,9 @@ export default memo(() => {
         <Text color={theme['c-font-label']} style={styles.meta}>
           已选：{getFolderName(selectedFolder)}
         </Text>
+        <Text color={theme['c-font-label']} style={styles.meta}>
+          下载目录：{getFolderName(downloadFolder)}
+        </Text>
         <View style={styles.buttonRow}>
           <Button
             style={{ ...styles.button, backgroundColor: theme['c-button-background'] }}
@@ -507,6 +531,13 @@ export default memo(() => {
             onPress={handleSelectCurrentFolder}
           >
             <Text color={theme['c-button-font']}>选择当前目录</Text>
+          </Button>
+          <Button
+            style={{ ...styles.button, backgroundColor: theme['c-button-background'] }}
+            disabled={!authInfo || loading}
+            onPress={handleSelectDownloadFolder}
+          >
+            <Text color={theme['c-button-font']}>设为下载目录</Text>
           </Button>
           <Button
             style={{ ...styles.button, backgroundColor: theme['c-button-background'] }}

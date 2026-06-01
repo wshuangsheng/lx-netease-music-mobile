@@ -359,6 +359,7 @@ declare global {
       'menu.playMV': boolean
       'menu.songDetail': boolean
       'menu.dislike': boolean
+      'menu.downloadOneDrive': boolean
 
       'menu.moveTo': boolean
       'menu.changePosition': boolean

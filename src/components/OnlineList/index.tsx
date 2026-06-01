@@ -24,7 +24,6 @@ import MusicDownloadModal, {
 } from '@/screens/Home/Views/Mylist/MusicList/MusicDownloadModal'
 import {createStyle, toast} from '@/utils/tools'
 import wyApi from '@/utils/musicSdk/wy/user'
-import {batchDownload} from "@/core/download.ts"
 import {getMvUrl} from "@/utils/musicSdk/wy/mv.js"
 import {useI18n} from "@/lang"
 import {removeWyLikedSong, updateWySubscribedPlaylistTrackCount} from "@/store/user/action.ts"
@@ -32,6 +31,7 @@ import {clearListDetailCache} from "@/core/songlist.ts"
 import commonState from '@/store/common/state'
 import {useWySubscribedPlaylists} from "@/store/user/hook.ts";
 import SimilarSongsModal, { type SimilarSongsModalType } from '@/components/SimilarSongsModal'
+import BatchDownloadModal, { type BatchDownloadModalType } from './BatchDownloadModal'
 
 export interface OnlineListProps {
   onRefresh: ListProps['onRefresh']
@@ -83,6 +83,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(
     const listMusicMultiAddRef = useRef<ListAddMultiType>(null)
     const listMenuRef = useRef<ListMenuType>(null)
     const musicDownloadModalRef = useRef<MusicDownloadModalType>(null)
+    const batchDownloadModalRef = useRef<BatchDownloadModalType>(null)
     const similarSongsModalRef = useRef<SimilarSongsModalType>(null)
     const t = useI18n()
     const subscribedPlaylists = useWySubscribedPlaylists()
@@ -121,9 +122,8 @@ export default forwardRef<OnlineListType, OnlineListProps>(
     const handleBatchDownload = useCallback(() => {
       const selectedList = listRef.current?.getSelectedList() ?? []
       if (!selectedList.length) return
-      void batchDownload(selectedList)
-      hancelExitSelect()
-    }, [hancelExitSelect])
+      batchDownloadModalRef.current?.show(selectedList)
+    }, [])
 
 
     const showMenu = (musicInfo: LX.Music.MusicInfoOnline, index: number, position: Position) => {
@@ -229,6 +229,7 @@ export default forwardRef<OnlineListType, OnlineListProps>(
             onDownload={handleBatchDownload}
           />
           <MusicDownloadModal ref={musicDownloadModalRef} onDownloadInfo={(info) => {}} />
+          <BatchDownloadModal ref={batchDownloadModalRef} onConfirm={hancelExitSelect} />
         </View>
         <ListMusicAdd
           ref={listMusicAddRef}

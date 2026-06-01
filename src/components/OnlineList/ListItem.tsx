@@ -84,6 +84,9 @@ export default memo(
     const isPlaying = playingId === item.id;
     const isSelected = selectedList.includes(item)
     const isLiked = useIsWyLiked(item.meta.songId)
+    const selectedBackground = theme.isDark
+      ? theme['c-primary-alpha-600']
+      : theme['c-primary-background-active']
 
     const moreButtonRef = useRef<TouchableOpacity>(null)
     const handleShowMenu = () => {
@@ -115,7 +118,11 @@ export default memo(
           ...styles.listItem,
           width: rowInfo.rowWidth,
           height: ITEM_HEIGHT,
-          backgroundColor: isPlaying || isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)',
+          backgroundColor: isSelected
+            ? selectedBackground
+            : isPlaying
+              ? theme['c-primary-background-hover']
+              : 'rgba(0,0,0,0)',
         }}
       >
         <TouchableOpacity

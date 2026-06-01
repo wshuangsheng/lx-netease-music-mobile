@@ -62,6 +62,9 @@ export default memo(
   }) => {
     const theme = useTheme()
     const isSelected = selectedList.includes(item)
+    const selectedBackground = theme.isDark
+      ? theme['c-primary-alpha-600']
+      : theme['c-primary-background-active']
     const isSupported = useAssertApiSupport(item.source)
     const moreButtonRef = useRef<TouchableOpacity>(null)
 
@@ -89,7 +92,7 @@ export default memo(
           ...styles.listItem,
           width: rowInfo.rowWidth,
           height: ITEM_HEIGHT,
-          backgroundColor: isSelected ? theme['c-primary-background-hover'] : 'rgba(0,0,0,0)',
+          backgroundColor: isSelected ? selectedBackground : 'rgba(0,0,0,0)',
           opacity: isSupported ? 1 : 0.5,
         }}
       >

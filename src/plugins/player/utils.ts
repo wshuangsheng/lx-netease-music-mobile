@@ -7,7 +7,7 @@ import {
   privateStorageDirectoryPath,
   temporaryDirectoryPath,
 } from '@/utils/fs'
-import { toast } from '@/utils/tools'
+import { getAppearance, toast } from '@/utils/tools'
 import settingState from '@/store/setting/state'
 // import { PlayerMusicInfo } from '@/store/modules/player/playInfo'
 
@@ -213,6 +213,8 @@ export const destroy = async () => {
 
 type PlayStatus = 'None' | 'Ready' | 'Playing' | 'Paused' | 'Stopped' | 'Buffering' | 'Connecting'
 
+const getNotificationColor = () => getAppearance() == 'dark' ? -1 : -16777216
+
 export const onStateChange = async (listener: (state: PlayStatus) => void) => {
   const sub = TrackPlayer.addEventListener(Event.PlaybackState, (state) => {
     let _state: PlayStatus
@@ -267,6 +269,7 @@ export const updateOptions = async (
   // Stop is not shown in notification, but handles swipe-to-dismiss → exit app
   return TrackPlayer.updateOptions({
     stopWithApp: true,
+    color: getNotificationColor(),
 
     capabilities: [
       Capability.Play,

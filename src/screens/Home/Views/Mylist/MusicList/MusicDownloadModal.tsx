@@ -2,12 +2,14 @@ import { View } from 'react-native'
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
 import ConfirmAlert, { type ConfirmAlertType } from '@/components/common/ConfirmAlert'
 import Text from '@/components/common/Text'
-import { createStyle } from '@/utils/tools'
+import { createStyle, toast } from '@/utils/tools'
 import CheckBox from '@/components/common/CheckBox'
 import { handleDownload } from './listAction'
 import { getLastSelectQuality, saveLastSelectQuality } from '@/utils/data'
 import { addTask as addDownloadTask } from '@/core/download';
 import {fetchAndApplyDetailedQuality} from "@/utils/musicSdk/wy/musicDetail.js";
+import { useSettingValue } from '@/store/setting/hook'
+import { getValidOneDriveAuth } from '@/core/oneDrive/auth'
 
 interface TitleType {
   updateTitle: (musicInfo: LX.Music.MusicInfo) => void
@@ -55,8 +57,10 @@ export default forwardRef<MusicDownloadModalType, MusicDownloadModalProps>(
     const titleRef = useRef<TitleType>(null)
     const selectedInfo = useRef<LX.Music.MusicInfo>(initSelectInfo as LX.Music.MusicInfo)
     const [selectedQuality, setSelectedQuality] = useState<LX.Quality>('128k')
+    const [selectedTarget, setSelectedTarget] = useState<'local' | 'onedrive'>('local')
     const [playQualityList, setPlayQualityList] = useState<MusicOption[]>([])
     const [visible, setVisible] = useState(false)
+    const showOneDriveDownload = useSettingValue('menu.downloadOneDrive')
 
     interface QualityMap {
       [key: string]: MusicOption
@@ -139,14 +143,29 @@ export default forwardRef<MusicDownloadModalType, MusicDownloadModalProps>(
       }
     }, [visible])
 
-    const handleDownloadMusic = () => {
+    const handleDownloadMusic = async() => {
+      const target = showOneDriveDownload && selectedTarget === 'onedrive' ? 'onedrive' : 'local'
+      if (target === 'onedrive') {
+        try {
+          await getValidOneDriveAuth()
+        } catch (error: any) {
+          toast(`OneDrive 未登录或授权已过期，请重新登录：${error.message ?? String(error)}`, 'long')
+          return
+        }
+      }
       void saveLastSelectQuality(selectedQuality)
       alertRef.current?.setVisible(false)
       // handleDownload(selectedInfo.current, selectedQuality)
-      addDownloadTask(selectedInfo.current, selectedQuality);
+      addDownloadTask(
+        selectedInfo.current,
+        selectedQuality,
+        false,
+        target
+      );
       // 下载后重置回默认值，以便下次打开时重新加载
       setTimeout(() => {
         setSelectedQuality('128k')
+        setSelectedTarget('local')
       }, 300)
     }
 
@@ -184,6 +203,24 @@ export default forwardRef<MusicDownloadModalType, MusicDownloadModalProps>(
       >
         <View style={styles.content}>
           <Title ref={titleRef} />
+          {showOneDriveDownload ? (
+            <View style={styles.targetList}>
+              <CheckBox
+                marginRight={8}
+                check={selectedTarget === 'local'}
+                label="下载到本地"
+                onChange={() => setSelectedTarget('local')}
+                need
+              />
+              <CheckBox
+                marginRight={8}
+                check={selectedTarget === 'onedrive'}
+                label="下载到 OneDrive"
+                onChange={() => setSelectedTarget('onedrive')}
+                need
+              />
+            </View>
+          ) : null}
           <View style={styles.list}>
             {playQualityList.map((item) => (
               <Item name={item.name + (item.size ? ` (${item.size})` : '')} id={item.id} key={item.key} />
@@ -210,5 +247,10 @@ const styles = createStyle({
   list: {
     flexDirection: 'column',
     flexWrap: 'nowrap',
+  },
+  targetList: {
+    flexDirection: 'column',
+    flexWrap: 'nowrap',
+    marginBottom: 8,
   },
 })

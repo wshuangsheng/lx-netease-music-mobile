@@ -44,6 +44,7 @@ declare namespace LX {
       id: string
       name: string
       size?: number
+      file?: unknown
       webUrl?: string
       downloadUrl?: string
       '@microsoft.graph.downloadUrl'?: string
@@ -63,6 +64,8 @@ declare namespace LX {
 
     interface Config {
       selectedFolder?: DriveFolder | null
+      downloadFolder?: DriveFolder | null
+      downloadFolderSelected?: boolean
       songs: MusicInfo[]
       scannedAt?: number
     }

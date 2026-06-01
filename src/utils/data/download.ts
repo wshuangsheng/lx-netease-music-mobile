@@ -5,6 +5,10 @@ const DOWNLOAD_TASKS_KEY = storageDataPrefix.downloadList;
 
 export const normalizeDownloadTasks = (tasks: LX.Download.DownloadTask[]): LX.Download.DownloadTask[] =>
   tasks.map(task => {
+    task = {
+      ...task,
+      target: task.target ?? 'local',
+    };
     if (task.status === 'downloading' || task.status === 'waiting') {
       return { ...task, status: 'paused' };
     }

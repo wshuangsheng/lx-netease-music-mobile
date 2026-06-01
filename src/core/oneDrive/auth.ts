@@ -3,7 +3,7 @@ import { getData, removeData, saveData } from '@/plugins/storage'
 const AUTHORITY = 'https://login.microsoftonline.com/common/oauth2/v2.0'
 const GRAPH_ME_URL = 'https://graph.microsoft.com/v1.0/me'
 const REDIRECT_URI = 'https://login.microsoftonline.com/common/oauth2/nativeclient'
-const SCOPES = 'offline_access User.Read Files.Read'
+const SCOPES = 'offline_access User.Read Files.ReadWrite'
 const AUTH_INFO_KEY = '@onedrive_auth'
 const PENDING_AUTH_KEY = '@onedrive_pending_auth'
 

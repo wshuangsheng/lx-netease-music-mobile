@@ -64,6 +64,19 @@ export const onScreenStateChange = (handler: (state: 'ON' | 'OFF') => void): (()
   }
 }
 
+export const onMediaVolumeChange = (
+  handler: (event: { volume: number; prevVolume: number; maxVolume: number }) => void
+): (() => void) => {
+  const eventEmitter = new NativeEventEmitter(UtilsModule)
+  const eventListener = eventEmitter.addListener('media-volume-changed', (event) => {
+    handler(event as { volume: number; prevVolume: number; maxVolume: number })
+  })
+
+  return () => {
+    eventListener.remove()
+  }
+}
+
 export const getWindowSize = async (): Promise<{ width: number; height: number }> => {
   return UtilsModule.getWindowSize()
 }

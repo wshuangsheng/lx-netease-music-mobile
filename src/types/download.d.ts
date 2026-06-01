@@ -20,6 +20,9 @@ declare namespace LX {
       createdAt: number;
       filePath: string;
       fileName: string;
+      target?: 'local' | 'onedrive';
+      remotePath?: string;
+      remoteUrl?: string;
       isForceCookie?: boolean;
       isRemoteSynced?: boolean;
     }

@@ -10,6 +10,8 @@ import downloadState from '@/store/download/state';
 import downloadActions from '@/store/download/action';
 import {filterFileName, sizeFormate} from "@/utils";
 import { getPicUrl } from '@/core/music/online'
+import { getOneDriveConfig, getOneDriveDownloadFolder, uploadOneDriveFile } from '@/core/oneDrive/drive'
+import { getValidOneDriveAuth } from '@/core/oneDrive/auth'
 import DownloadTask = LX.Download.DownloadTask
 import wySdk from '@/utils/musicSdk/wy'
 
@@ -25,6 +27,13 @@ const getDownloadHeaders = (task: DownloadTask) => {
   return task.musicInfo.source === 'wy' ? WY_MEDIA_HEADERS : DOWNLOAD_HEADERS
 }
 let currentDownloadTask: any | null = null;
+type DownloadTarget = 'local' | 'onedrive';
+
+const getTaskTarget = (task: DownloadTask): DownloadTarget => task.target ?? 'local'
+
+const getTaskAudioFileName = (task: DownloadTask) => {
+  return `${task.fileName}.${getFileExtension(task.quality)}`
+}
 
 const processQueue = async () => {
   if (isProcessing || taskQueue.length === 0) return;
@@ -40,6 +49,9 @@ const processQueue = async () => {
     await startDownload(task);
   } catch (error: any) {
     downloadActions.updateTask(task.id, { status: 'error', errorMsg: error.message });
+    if (getTaskTarget(task) === 'onedrive') {
+      toast(`OneDrive 下载失败：${error.message}`, 'long');
+    }
   } finally {
     isProcessing = false;
     processQueue();
@@ -48,6 +60,10 @@ const processQueue = async () => {
 
 const startDownload = async (task: DownloadTask) => {
   downloadActions.updateTask(task.id, { status: 'downloading' });
+  const target = getTaskTarget(task);
+  if (target === 'onedrive') {
+    await getValidOneDriveAuth();
+  }
 
   let url: string;
   if (task.isForceCookie && task.musicInfo.source === 'wy') {
@@ -69,7 +85,7 @@ const startDownload = async (task: DownloadTask) => {
     url = await getMusicUrl({ musicInfo: task.musicInfo, quality: task.quality, isRefresh: true });
   }
 
-  await requestStoragePermission()
+  if (target === 'local') await requestStoragePermission()
 
   if (!task.isForceCookie) {
     toast(`${task.fileName} 正在下载...`, 'short');
@@ -108,6 +124,56 @@ const startDownload = async (task: DownloadTask) => {
     await downloadTask;
     console.log('下载完成:', task.fileName);
     await handleMetadata(task, task.filePath);
+    if (target === 'onedrive') {
+      const config = await getOneDriveConfig();
+      const downloadFolder = getOneDriveDownloadFolder(config);
+      const uploadFileName = getTaskAudioFileName(task);
+      const lyricPath = task.filePath.substring(0, task.filePath.lastIndexOf('.')) + '.lrc';
+      try {
+        toast(`${uploadFileName} 正在上传到 OneDrive...`, 'short');
+        const result = await uploadOneDriveFile({
+          localPath: task.filePath,
+          fileName: uploadFileName,
+          folder: downloadFolder,
+          onProgress(uploaded, total) {
+            const percent = total > 0 ? uploaded / total : 0;
+            downloadActions.updateTask(task.id, {
+              progress: {
+                ...task.progress,
+                percent,
+                downloaded: uploaded,
+                total,
+                speed: 'OneDrive',
+              },
+            });
+          },
+        });
+
+        if (settingState.setting['download.writeLyric'] && await RNFetchBlob.fs.exists(lyricPath)) {
+          await uploadOneDriveFile({
+            localPath: lyricPath,
+            fileName: `${task.fileName}.lrc`,
+            folder: downloadFolder,
+          });
+        }
+
+        downloadActions.updateTask(task.id, {
+          status: 'completed',
+          remotePath: result.remotePath,
+          remoteUrl: result.item.webUrl,
+          progress: {
+            ...task.progress,
+            percent: 1,
+            total: result.item.size ?? task.progress.total,
+          },
+        });
+        toast(`${uploadFileName} 已上传到 OneDrive!`, 'short');
+        return;
+      } finally {
+        await unlink(task.filePath).catch(() => {});
+        await unlink(lyricPath).catch(() => {});
+      }
+    }
     try {
       await RNFetchBlob.fs.scanFile([{ path: task.filePath }]);
       console.log(`[Download Manager] Media scan requested for: ${task.filePath}`);
@@ -145,7 +211,9 @@ const handleMetadata = async (task: DownloadTask, filePath: string) => {
     }
   }
 
-  const downloadDir = settingState.setting['download.path'] || (RNFetchBlob.fs.dirs.MusicDir + '/LX-N Music')
+  const downloadDir = getTaskTarget(task) === 'onedrive'
+    ? RNFetchBlob.fs.dirs.CacheDir
+    : settingState.setting['download.path'] || (RNFetchBlob.fs.dirs.MusicDir + '/LX-N Music')
   // 写入封面
   if (settingState.setting['download.writePicture']) {
     try {
@@ -275,7 +343,7 @@ export const retryTask = (taskId: string) => {
     removeTask(task.id);
     // 延迟一下，确保状态更新
     setTimeout(() => {
-      addTask(task.musicInfo, task.quality);
+      addTask(task.musicInfo, task.quality, task.isForceCookie, getTaskTarget(task));
     }, 200);
   }
   // 如果文件已存在，但元信息失败，则只重试元信息
@@ -309,7 +377,12 @@ export const resumeTask = async (taskId: string) => {
   processQueue();
 };
 
-export const addTask = (musicInfo: LX.Music.MusicInfo, quality: LX.Quality, isForceCookie: boolean = false) => {
+export const addTask = (
+  musicInfo: LX.Music.MusicInfo,
+  quality: LX.Quality,
+  isForceCookie: boolean = false,
+  target: DownloadTarget = 'local'
+) => {
   const extension = getFileExtension(quality);
 
   let finalSingerString = musicInfo.singer;
@@ -321,16 +394,22 @@ export const addTask = (musicInfo: LX.Music.MusicInfo, quality: LX.Quality, isFo
     .replace('歌名', musicInfo.name)
     .replace('歌手', finalSingerString);
   fileName = filterFileName(fileName);
-  const downloadDir = settingState.setting['download.path'] || (RNFetchBlob.fs.dirs.MusicDir + '/LX-N Music');
-  const filePath = `${downloadDir}/${fileName}.${extension}`;
+  const id = toMD5(`${musicInfo.id}-${quality}-${target}`);
+  const downloadDir = target === 'onedrive'
+    ? RNFetchBlob.fs.dirs.CacheDir
+    : settingState.setting['download.path'] || (RNFetchBlob.fs.dirs.MusicDir + '/LX-N Music');
+  const filePath = target === 'onedrive'
+    ? `${downloadDir}/lx_onedrive_${id}.${extension}`
+    : `${downloadDir}/${fileName}.${extension}`;
 
   const task: DownloadTask = {
-    id: toMD5(`${musicInfo.id}-${quality}`),
+    id,
     musicInfo,
     quality,
     status: 'waiting',
     filePath,
     fileName,
+    target,
     progress: { percent: 0, speed: '', downloaded: 0, total: 0 },
     metadataStatus: { cover: 'pending', lyric: 'pending', tags: 'pending' },
     createdAt: Date.now(),
@@ -379,7 +458,11 @@ export const removeTask = (id: string) => {
  * 批量下载任务 - 使用网易云源和Cookie，并间隔添加
  * @param musicInfos 选中的歌曲列表
  */
-export const batchDownload = async (musicInfos: LX.Music.MusicInfo[]) => {
+export const batchDownload = async (
+  musicInfos: LX.Music.MusicInfo[],
+  quality: LX.Quality,
+  target: DownloadTarget = 'local'
+) => {
   const cookie = settingState.setting['common.wy_cookie'];
   if (!cookie) {
     toast('请先在设置中配置网易云 Cookie');
@@ -395,10 +478,9 @@ export const batchDownload = async (musicInfos: LX.Music.MusicInfo[]) => {
     return;
   }
 
-  const quality = settingState.setting['player.playQuality'];
   toast(`准备添加 ${wyMusicInfos.length} 首歌曲到下载队列...`);
   for (const musicInfo of wyMusicInfos) {
-    addTask(musicInfo, quality, true);
+    addTask(musicInfo, quality, true, target);
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 };

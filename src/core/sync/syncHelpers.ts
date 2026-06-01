@@ -21,6 +21,45 @@ export const filterSensitiveSettingsForSync = (settings: Partial<LX.AppSetting>)
   return nextSettings;
 };
 
+const sanitizeOneDriveMusicInfoForSync = (musicInfo: LX.Music.MusicInfo): LX.Music.MusicInfo => {
+  const meta = musicInfo.meta as Partial<LX.OneDrive.MusicInfo['meta']>;
+  if (!meta.oneDrive) return musicInfo;
+
+  const nextMeta = { ...musicInfo.meta } as Partial<LX.OneDrive.MusicInfo['meta']>;
+  delete nextMeta.webUrl;
+  delete nextMeta.downloadUrl;
+  delete nextMeta.picUrl;
+  return {
+    ...musicInfo,
+    meta: nextMeta as LX.Music.MusicInfo['meta'],
+  } as LX.Music.MusicInfo;
+};
+
+const sanitizeMusicListForSync = (list: LX.Music.MusicInfo[]) =>
+  list.map(sanitizeOneDriveMusicInfoForSync);
+
+const sanitizeListsForSync = (lists: LX.List.ListDataFull): LX.List.ListDataFull => ({
+  defaultList: sanitizeMusicListForSync(lists.defaultList),
+  loveList: sanitizeMusicListForSync(lists.loveList),
+  tempList: sanitizeMusicListForSync(lists.tempList),
+  userList: lists.userList.map(list => ({
+    ...list,
+    list: sanitizeMusicListForSync(list.list),
+  })),
+});
+
+const sanitizePlayHistoryForSync = (history: LX.Player.PlayHistoryItem[]) =>
+  history.map(item => ({
+    ...item,
+    musicInfo: sanitizeOneDriveMusicInfoForSync(item.musicInfo),
+  }));
+
+const sanitizeDownloadTasksForSync = (tasks: LX.Download.DownloadTask[]) =>
+  tasks.map(task => ({
+    ...task,
+    musicInfo: sanitizeOneDriveMusicInfoForSync(task.musicInfo),
+  }));
+
 export const getAllDataForSync = async () => {
   const defaultList = await getListMusics(listState.defaultList.id);
   const loveList = await getListMusics(listState.loveList.id);
@@ -29,9 +68,9 @@ export const getAllDataForSync = async () => {
   for await (const list of listState.userList) {
     userList.push({ ...list, list: await getListMusics(list.id) });
   }
-  const lists = { defaultList, loveList, userList, tempList };
-  const playHistory = await getPlayHistory();
-  const downloadTasks = normalizeDownloadTasksForSync(downloadState.tasks);
+  const lists = sanitizeListsForSync({ defaultList, loveList, userList, tempList });
+  const playHistory = sanitizePlayHistoryForSync(await getPlayHistory());
+  const downloadTasks = sanitizeDownloadTasksForSync(normalizeDownloadTasksForSync(downloadState.tasks));
   const settings = filterSensitiveSettingsForSync(settingState.setting);
 
   const userApiList = await getUserApiList();

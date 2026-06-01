@@ -89,6 +89,7 @@ const defaultSetting: LX.AppSetting = {
   'menu.playMV': true,
   'menu.songDetail': true,
   'menu.dislike': true,
+  'menu.downloadOneDrive': true,
 
   'menu.moveTo': true,
   'menu.changePosition': true,

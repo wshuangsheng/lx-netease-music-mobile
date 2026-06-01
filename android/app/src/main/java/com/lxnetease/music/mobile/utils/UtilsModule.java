@@ -43,6 +43,11 @@ import java.util.Locale;
 import java.util.Objects;
 
 public class UtilsModule extends ReactContextBaseJavaModule {
+  private static final String ACTION_VOLUME_CHANGED = "android.media.VOLUME_CHANGED_ACTION";
+  private static final String EXTRA_VOLUME_STREAM_TYPE = "android.media.EXTRA_VOLUME_STREAM_TYPE";
+  private static final String EXTRA_VOLUME_STREAM_VALUE = "android.media.EXTRA_VOLUME_STREAM_VALUE";
+  private static final String EXTRA_PREV_VOLUME_STREAM_VALUE = "android.media.EXTRA_PREV_VOLUME_STREAM_VALUE";
+
   private final ReactApplicationContext reactContext;
 
   private int listenerCount = 0;
@@ -54,6 +59,7 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     this.reactContext = reactContext;
     utilsEvent = new UtilsEvent(reactContext);
     registerScreenBroadcastReceiver();
+    registerMediaVolumeBroadcastReceiver();
   }
 
   @Override
@@ -106,6 +112,34 @@ public class UtilsModule extends ReactContextBaseJavaModule {
     };
 
     reactContext.registerReceiver(screenOnOffReceiver, theFilter);
+  }
+
+  private void registerMediaVolumeBroadcastReceiver() {
+    final IntentFilter filter = new IntentFilter(ACTION_VOLUME_CHANGED);
+
+    BroadcastReceiver mediaVolumeReceiver = new BroadcastReceiver() {
+      @Override
+      public void onReceive(Context context, Intent intent) {
+        if (!ACTION_VOLUME_CHANGED.equals(intent.getAction())) return;
+
+        int streamType = intent.getIntExtra(EXTRA_VOLUME_STREAM_TYPE, -1);
+        if (streamType != AudioManager.STREAM_MUSIC) return;
+
+        AudioManager audioManager = (AudioManager) reactContext.getSystemService(Context.AUDIO_SERVICE);
+        if (audioManager == null) return;
+
+        WritableMap params = Arguments.createMap();
+        params.putInt("volume", intent.getIntExtra(
+          EXTRA_VOLUME_STREAM_VALUE,
+          audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+        ));
+        params.putInt("prevVolume", intent.getIntExtra(EXTRA_PREV_VOLUME_STREAM_VALUE, -1));
+        params.putInt("maxVolume", audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC));
+        utilsEvent.sendEvent(utilsEvent.MEDIA_VOLUME_CHANGED, params);
+      }
+    };
+
+    reactContext.registerReceiver(mediaVolumeReceiver, filter);
   }
 
   @ReactMethod

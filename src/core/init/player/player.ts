@@ -58,6 +58,9 @@ export default async (setting: LX.AppSetting) => {
         }
       })
     }
+    if (keys.includes('player.isShowNotificationImage') && playerState.playMusicInfo.musicInfo) {
+      delayUpdateMusicInfo(playerState.musicInfo, playerState.lastLyric)
+    }
   }
 
   global.app_event.on('play', setPlayStatus)
